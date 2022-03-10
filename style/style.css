@@ -1,0 +1,199 @@
+body {
+    background-color: white;
+    margin: 0;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+.si_topBar {
+    width: 100%;
+    height: 65px;
+    background-color: #00a550;
+    margin: 0;
+    text-align: center;
+    font-family: 'Open Sans', sans-serif;
+    font-weight: 300;
+    font-size: 35px;
+    color: white;
+    padding-top: 7px;
+}
+
+.si_topBarName {
+    font-family: 'Ruda', sans-serif;
+    font-weight: 700;
+}
+
+.si {
+    height: 500px;
+    width: 80%;
+    margin-right: auto;
+    margin-left: auto;
+}
+
+.si_LogoContainer {
+    height: 500px;
+    position: relative;
+    float: left;
+    width: 42%;
+}
+
+.si_textContainer {
+    height: 500px;
+    float: left;
+    width: 58%;
+}
+
+.si_logo {
+    width: 300px;
+    height: 300px;
+    position: absolute;
+    top: 20%;
+    left: 100%;
+    -ms-transform: translate(-100%, -20%);
+    transform: translate(-100%, -20%);
+}
+
+.si_container {
+    height: 400px;
+    width: 350px;
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: 30px;
+}
+
+.si_text {
+    font-family: 'Open Sans', sans-serif;
+    color: black;
+    margin-bottom: 17px;
+}
+
+.si_textBox {
+    width: 350px;
+    height: 35px;
+    font-size: 20px;
+    border: 2px solid black;
+}
+
+.si_textBox::placeholder {
+    color: #9e9e9e;
+    opacity: 1;
+}
+.si_textBox::-webkit-input-placeholder {
+    color: #9e9e9e;
+    opacity: 1;
+}
+.si_textBox::-moz-placeholder {
+    color: #9e9e9e;
+    opacity: 1;
+}
+.si_textBox:-ms-input-placeholder {
+    color: #9e9e9e;
+    opacity: 1;
+}
+.si_textBox:-moz-placeholder {
+    color: #9e9e9e;
+    opacity: 1;
+}
+
+.si_textBox:focus {
+    outline: none;
+    border: 2px solid #00a550;
+}
+
+.si_createButton {
+    width: 150px;
+    height: 30px;
+    float: right;
+    margin-right: 15px;
+    border: 0;
+    color: white;
+    font-family: 'Roboto', sans-serif;
+    background-color: #00a550;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.si_checkContainer {
+    height: 30px;
+    text-align: center;
+    width: 150px;
+    float: left;
+    padding-left: 20px;
+    padding-top: 2px;
+}
+
+.si_rememberMe {
+    float: left;
+    font-family: 'Open Sans', sans-serif;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.si_checkbox {
+    cursor: pointer;
+    height: 18px;
+    float: left;
+}
+
+@media only screen and (max-width: 900px),
+only screen and (max-device-width: 900px) {
+    .si_logo {
+        visibility: hidden;
+    }
+    .si_LogoContainer {
+        width: 0%;
+        visibility: hidden;
+    }
+    .si_textContainer {
+        width: 300px;
+    }
+    .si {
+        width: 300px;
+        position: relative;
+    }
+    .si_container {
+        width: 300px;
+        margin-top: 10px;
+        position: relative;
+        left: 0;
+    }
+    .si_topBar {
+        font-size: 20px;
+        padding-top: 19px;
+    }
+    .si_textBox {
+        width: 300px;
+    }
+    .si_rememberMe {
+        position: absolute;
+        left: 53%;
+        bottom: 60px;
+        -ms-transform: translate(-50%);
+        transform: translate(-50%);
+    }
+    .si_checkbox {
+        position: absolute;
+        left: 29%;
+        bottom: 75px;
+        -ms-transform: translate(-50%);
+        transform: translate(-50%);
+    }
+    .si_createButton {
+        position: absolute;
+        left: 50%;
+        bottom: 40px;
+        -ms-transform: translate(-50%);
+        transform: translate(-50%);
+    }
+    .si_loginButton {
+        bottom: 195px;
+    }
+    .si_loginRemember {
+        bottom: 215px;
+    }
+    .si_loginCheckbox {
+        bottom: 230px;
+    }
+}
