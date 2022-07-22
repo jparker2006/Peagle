@@ -1,11 +1,9 @@
 var g_objData = {};
 
-var PC, LC;
-var PConfig =  {'iceServers': [{'urls': 'stun:stun.services.mozilla.com'}, {'urls': 'stun:stun.l.google.com:19302'}]};
-
 onload = () => {
     PrepRTCToBrowser();
     MainFrame();
+    setRTCConstraints();
     initWebSocket();
 }
 
@@ -19,55 +17,75 @@ const PrepRTCToBrowser = () => {
 
 const MainFrame = () => {
     let sPage = "";
-    sPage += "<video id='remote' autoplay></video>";
-    sPage += "<video id='local' autoplay muted></video><br><br>";
-    sPage += "<input id='call' type='button' value='Call' onClick='initiateCall()' />";
-    sPage += "<input id='end' type='button' disabled value='Hang Up' onClick='SendHangUp()' />";
+    sPage += "<video id='local' autoplay muted ></video>";
+    sPage += "<video id='remote' autoplay ></video><br>";
+    sPage += "<button id='start' onclick='start(true)'>Start Video</button>";
     document.getElementById('Main').innerHTML = sPage;
 }
 
-const connectToRTC = () => {
-    let objData = {};
-    objData.Type = "Jake";
-    objData.GameID = g_objData.nGameID;
-    objData.ID = 0;
-    objData.Message = "BCast2Game";
-    objData.Event = "ConnectToRTC";
-    let jsonData = JSON.stringify(objData);
-    sendMessage(jsonData);
+
+const start = (isCaller) => {
+    g_objData.PC = new RTCPeerConnection({ 'iceServers':
+        [ {'urls': 'stun:stun.stunprotocol.org:3478'}, {'urls': 'stun:stun.l.google.com:19302'} ]
+    });
+    g_objData.PC.onicecandidate = gotIceCandidate;
+    g_objData.PC.ontrack = gotRemoteStream;
+
+    PCStream(isCaller);
 }
 
-function initiateCall() {
-    PC = new RTCPeerConnection(PConfig);
-    PC.onicecandidate = onIceCandidateHandler;
-    PC.ontrack = onAddStreamHandler;
-    navigator.getUserMedia({ "audio": true, "video": true }, function (stream) {
-        LC = stream;
-        document.getElementById('local').srcObject = LC;
-        PC.addStream(LC);
-        createAndSendOffer();
-    }, function(error) { console.log(error); });
+const setRTCConstraints = () => {
+    if (navigator.mediaDevices.getUserMedia)
+        navigator.mediaDevices.getUserMedia({ video: true, audio: false }).then(getUserMediaSuccess).catch(errorHandler);
+    else
+        alert('Your browser does not support getUserMedia API');
 }
 
-function answerCall() {
-    PC = new RTCPeerConnection(PConfig);
-    PC.onicecandidate = onIceCandidateHandler;
-    PC.ontrack = onAddStreamHandler;
-    navigator.getUserMedia({ "audio": true, "video": true }, function (stream) {
-        LC = stream;
-        document.getElementById('local').srcObject = LC;
-        PC.addStream(LC);
-        console.log(PC);
-        createAndSendAnswer();
-    }, function(error) { console.log(error);});
-};
+const PCStream = (isCaller) => {
+    setTimeout(function() {
+        if (!g_objData.LocalStream) {
+            PCStream();
+            console.log("Still trying");
+        }
+        else {
+            g_objData.PC.addStream(g_objData.LocalStream);
+            if (isCaller) {
+                g_objData.PC.createOffer().then(createdDescription).catch(errorHandler);
+            }
+        }
+    }, 1000);
+}
+
+const gotIceCandidate = (event) => {
+    if (event.candidate != null) {
+        let objData = {};
+        objData.Type = "Jake";
+        objData.GameID = g_objData.nGameID;
+        objData.ID = g_objData.nID;
+        objData.Event = "Ice";
+        objData.Message = "BCast2Game";
+        objData.ice = event.candidate;
+        let jsonData = JSON.stringify(objData);
+        sendMessage(jsonData);
+    }
+}
+
+const getUserMediaSuccess = (stream) => {
+    g_objData.LocalStream = stream;
+    document.getElementById('local').srcObject = stream;
+}
+
+const errorHandler = (error) => {
+    console.log(error);
+}
+
 
 var wsUri = "ws://jakehenryparker.com:58007";
 if (window.location.protocol === 'https:') {
     wsUri = "wss://jakehenryparker.com:57007/wss";
 }
 var wSocket = null;
-function initWebSocket() {
+const initWebSocket = () => {
     try {
         if (typeof MozWebSocket == 'function')
             WebSocket = MozWebSocket;
@@ -83,29 +101,20 @@ function initWebSocket() {
             console.log("Connection closed");
         };
         wSocket.onmessage = (evt) => {
-            if (!PC) answerCall();
+            if (!g_objData.PC) start(false);
             let objData = JSON.parse(evt.data);
             let sType = objData.Type;
             if ("Jake" == sType) {
                 if ("BCast2Game" == objData.Message) {
-                    if ("ConnectToRTC" == objData.Event) {
-                        console.log("click");
+                    if ("SDP" == objData.Event) {
+                        g_objData.PC.setRemoteDescription(new RTCSessionDescription(objData.sdp)).then(function() {
+                            if (objData.sdp.type == 'offer') {
+                                g_objData.PC.createAnswer().then(createdDescription).catch(errorHandler);
+                            }
+                        }).catch(errorHandler);
                     }
-                    else if ("StartCall" == objData.Event) {
-                        console.log("Call Started.");
-                        startCall();
-                    }
-                    else if ("HangUpCall" == objData.Event) {
-                        console.log("Call Ended.");
-                        endCall();
-                    }
-                    else if ("SDP" == objData.Event) {
-                        console.log("Received SDP from remote peer.");
-                        PC.setRemoteDescription(new RTCSessionDescription(JSON.parse(objData.Offer)));
-                    }
-                    else if ("Candidate" == objData.Event) {
-                        console.log("Received ICECandidate from remote peer.");
-                        PC.addIceCandidate(new RTCIceCandidate(JSON.parse(objData.Candidate)));
+                    else if ("Ice" == objData.Event) {
+                        g_objData.PC.addIceCandidate(new RTCIceCandidate(objData.ice)).catch(errorHandler);
                     }
                 }
                 else if ("WhoAmI" == objData.Message) {
@@ -120,122 +129,31 @@ function initWebSocket() {
     }
 }
 
-function onIceCandidateHandler(evt) {
-    if (!evt || !evt.candidate)
-        return;
+const createdDescription = (description) => {
+    console.log('got description');
 
-    let objData = {};
-    objData.Type = "Jake";
-    objData.GameID = g_objData.nGameID;
-    objData.ID = g_objData.nID;
-    objData.Message = "BCast2Game";
-    objData.Event = "Candidate";
-    objData.Candidate = JSON.stringify(evt.candidate);
-    let jsonData = JSON.stringify(objData);
-    sendMessage(jsonData);
-};
+    g_objData.PC.setLocalDescription(description).then(function() {
 
-function onAddStreamHandler(evt) {
-    document.getElementById('call').disabled = true;
-    document.getElementById('end').disabled = false;
-    document.getElementById('remote').srcObject = evt.stream;
-    console.log("Adding stream.");
-};
+        let objData = {};
+        objData.Type = "Jake";
+        objData.GameID = g_objData.nGameID;
+        objData.Message = "BCast2Game";
+        objData.ID = g_objData.nID;
+        objData.Event = "SDP";
+        objData.sdp = g_objData.PC.localDescription;
+        let jsonData = JSON.stringify(objData);
+        sendMessage(jsonData);
 
-function createAndSendOffer() {
-    PC.createOffer(
-        function (offer) {
-            var off = new RTCSessionDescription(offer);
-            PC.setLocalDescription(new RTCSessionDescription(off),
-                function() {
-                    SendOffer(off);
-                },
-                function(error) { console.log(error);}
-            );
-        },
-        function (error) { console.log(error); }
-    );
-};
-
-function createAndSendAnswer() {
-    PC.createAnswer(
-        function (answer) {
-            var ans = new RTCSessionDescription(answer);
-            PC.setLocalDescription(ans, function() {
-                SendAnswer(ans);
-            },
-            function (error) { console.log(error);}
-            );
-        },
-        function (error) {console.log(error);}
-    );
-};
-
-const endCall = () => {
-    document.getElementById('call').disabled = false;
-    document.getElementById('end').disabled = true;
-
-    PC.close();
-    PC = null;
-    if (LC) {
-        LC.getTracks().forEach(function (track) {
-            track.stop();
-        });
-        document.getElementById('local').src = "";
-    }
-    if (document.getElementById('remote'))
-        document.getElementById('remote').src = "";
+    }).catch(errorHandler);
 }
 
-const SendOffer = (offer) => {
-    let objData = {};
-    objData.Type = "Jake";
-    objData.GameID = g_objData.nGameID;
-    objData.ID = g_objData.nID;
-    objData.Message = "BCast2Game";
-    objData.Event = "SDP";
-    objData.Offer = JSON.stringify(offer);
-    let jsonData = JSON.stringify(objData);
-    sendMessage(jsonData);
+const gotRemoteStream = (event) => {
+    console.log('got remote stream');
+    document.getElementById('remote').srcObject = event.streams[0];
 }
 
-const SendAnswer = (answer) => {
-    let objData = {};
-    objData.Type = "Jake";
-    objData.GameID = g_objData.nGameID;
-    objData.ID = g_objData.nID;
-    objData.Message = "BCast2Game";
-    objData.Event = "SDP";
-    objData.Offer = JSON.stringify(answer);
-    let jsonData = JSON.stringify(objData);
-    sendMessage(jsonData);
-}
 
-const SendCall = () => {
-    let objData = {};
-    objData.Type = "Jake";
-    objData.GameID = g_objData.nGameID;
-    objData.ID = g_objData.nID;
-    objData.Message = "BCast2Game";
-    objData.Event = "StartCall";
-    let jsonData = JSON.stringify(objData);
-    sendMessage(jsonData);
-    startCall();
-}
-
-const SendHangUp = () => {
-    let objData = {};
-    objData.Type = "Jake";
-    objData.GameID = g_objData.nGameID;
-    objData.ID = g_objData.nID;
-    objData.Message = "BCast2Game";
-    objData.Event = "HangUpCall";
-    let jsonData = JSON.stringify(objData);
-    sendMessage(jsonData);
-    endCall();
-}
-
-function SendMyID() {
+const SendMyID = () => {
     let objData = {};
     objData.Type = "Jake";
     objData.GameID = 0;
@@ -245,7 +163,7 @@ function SendMyID() {
     sendMessage(jsonData);
 }
 
-function SetGameID(nGameID) {
+const SetGameID = (nGameID) => {
     let objData = {};
     objData.Type = "Jake";
     objData.Message = "SetGameID";
@@ -255,17 +173,17 @@ function SetGameID(nGameID) {
     g_objData.nGameID = nGameID;
 }
 
-function stopWebSocket() {
+const stopWebSocket = () => {
     if (wSocket)
         wSocket.close(1000, "Deliberate disconnection");
 }
 
-function close_socket() {
+const close_socket = () => {
     if (wSocket.readyState === WebSocket.OPEN)
         wSocket.close(1000, "Deliberate disconnection");
 }
 
-function CheckConnection() {
+const CheckConnection = () => {
     if (!wSocket)
         initWebSocket();
     else if (wSocket.readyState == 3) { // Closed
@@ -274,10 +192,9 @@ function CheckConnection() {
     }
 }
 
-function sendMessage(jsonData) {
-    if (wSocket != null && 1 == wSocket.readyState) {
+const sendMessage = (jsonData) => {
+    if (wSocket != null && 1 == wSocket.readyState)
         wSocket.send(jsonData);
-    }
     else {
         console.log("ws error");
         CheckConnection();
@@ -287,24 +204,26 @@ function sendMessage(jsonData) {
 }
 
 var hidden, visibilityChange;
-VisiblitySetup();
-function VisiblitySetup() {
+const ShowVisibilityChange = () => {
+    //var isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    if ('visible' === document.visibilityState)
+        CheckConnection();
+}
+
+const VisiblitySetup = () => {
     if (typeof document.hidden !== "undefined") { // Opera 12.10 and Firefox 18 and later support
         hidden = "hidden";
         visibilityChange = "visibilitychange";
-    } else if (typeof document.msHidden !== "undefined") {
+    }
+    else if (typeof document.msHidden !== "undefined") {
         hidden = "msHidden";
         visibilityChange = "msvisibilitychange";
-    } else if (typeof document.webkitHidden !== "undefined") {
+    }
+    else if (typeof document.webkitHidden !== "undefined") {
         hidden = "webkitHidden";
         visibilityChange = "webkitvisibilitychange";
     }
     document.addEventListener(visibilityChange, ShowVisibilityChange, false);
 }
 
-function ShowVisibilityChange() {
-    //var isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-    if ('visible' === document.visibilityState) {
-        CheckConnection();
-    }
-}
+VisiblitySetup();
