@@ -2,17 +2,68 @@ var g_objData = {};
 
 onload = () => {
     PrepRTCToBrowser();
+//     setRTCConstraints();
+
+    LoginFrame();
+//     MenuFrame();
+
+    /*
     MainFrame();
-    setRTCConstraints();
     initWebSocket();
+    */
 }
 
-const PrepRTCToBrowser = () => {
-    navigator.getUserMedia = navigator.getUserMedia || navigator.mozGetUserMedia || navigator.webkitGetUserMedia;
-    window.RTCPeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
-    window.RTCIceCandidate = window.RTCIceCandidate || window.mozRTCIceCandidate || window.webkitRTCIceCandidate;
-    window.RTCSessionDescription = window.RTCSessionDescription || window.mozRTCSessionDescription || window.webkitRTCSessionDescription;
-    window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || window.mozSpeechRecognition || window.msSpeechRecognition || window.oSpeechRecognition;
+const LoginFrame = () => {
+    let sPage = "";
+    sPage += "<input id='username' type='text' />";
+    sPage += "<button onClick='login()'>Login</button>";
+    document.getElementById('Main').innerHTML = sPage;
+}
+
+const login = () => {
+    let sUsername = document.getElementById('username').value;
+    if (!sUsername) {
+        alert("Please enter a username");
+        return;
+    }
+    g_objData.sUsername = sUsername;
+    initWebSocket();
+    MenuFrame();
+}
+
+const MenuFrame = () => {
+    let sPage = "";
+
+    sPage += "<div class='callsomeone'>";
+    sPage += "Call Someone<br>";
+    sPage += "<input id='calledusername' type='text' placeholder='Username' />";
+    sPage += "<button onClick='dialUser()'>Dial Up</button>";
+    sPage += "</div>";
+
+    sPage += "<div id='incoming' class='incoming'>";
+    sPage += "Incoming Calls:<br>";
+    sPage += "</div>";
+
+    document.getElementById('Main').innerHTML = sPage;
+}
+
+const dialUser = () => {
+    let sUsername = document.getElementById('calledusername').value;
+    if (!sUsername) {
+        alert("Please enter a username before dialing");
+        return;
+    }
+
+    let objData = {};
+    objData.Type = "Jake";
+    objData.GameID = g_objData.nGameID;
+    objData.Message = "BCast2Game";
+    objData.ID = g_objData.nID;
+    objData.Event = "SomeonesDialing";
+    objData.Username = sUsername;
+    objData.TheirUN = g_objData.sUsername;
+    let jsonData = JSON.stringify(objData);
+    sendMessage(jsonData);
 }
 
 const MainFrame = () => {
@@ -22,7 +73,6 @@ const MainFrame = () => {
     sPage += "<button id='start' onclick='start(true)'>Start Video</button>";
     document.getElementById('Main').innerHTML = sPage;
 }
-
 
 const start = (isCaller) => {
     g_objData.PC = new RTCPeerConnection({ 'iceServers':
@@ -53,7 +103,7 @@ const PCStream = (isCaller) => {
                 g_objData.PC.createOffer().then(createdDescription).catch(errorHandler);
             }
         }
-    }, 1000);
+    }, 500);
 }
 
 const gotIceCandidate = (event) => {
@@ -79,7 +129,6 @@ const errorHandler = (error) => {
     console.log(error);
 }
 
-
 var wsUri = "ws://jakehenryparker.com:58007";
 if (window.location.protocol === 'https:') {
     wsUri = "wss://jakehenryparker.com:57007/wss";
@@ -101,10 +150,11 @@ const initWebSocket = () => {
             console.log("Connection closed");
         };
         wSocket.onmessage = (evt) => {
-            if (!g_objData.PC) start(false);
+//             if (!g_objData.PC) start(false);
             let objData = JSON.parse(evt.data);
             let sType = objData.Type;
             if ("Jake" == sType) {
+
                 if ("BCast2Game" == objData.Message) {
                     if ("SDP" == objData.Event) {
                         g_objData.PC.setRemoteDescription(new RTCSessionDescription(objData.sdp)).then(function() {
@@ -116,17 +166,47 @@ const initWebSocket = () => {
                     else if ("Ice" == objData.Event) {
                         g_objData.PC.addIceCandidate(new RTCIceCandidate(objData.ice)).catch(errorHandler);
                     }
+                    else if ("SomeonesDialing" == objData.Event) {
+                        if (objData.Username == g_objData.sUsername) {
+                            let sPage = "";
+                            sPage += "<div class='call' onClick='pickUp("+objData.ID+")'>";
+                            sPage += objData.TheirUN + " is calling";
+                            sPage += "</div>";
+                            document.getElementById("incoming").innerHTML += sPage;
+                        }
+                    }
                 }
+
+                else if ("Msg2ID" == objData.Message) {
+                    if ("PickingUp" == objData.Event) {
+                        console.log(objData.UN + " picked up the call");
+                    }
+                }
+
                 else if ("WhoAmI" == objData.Message) {
                     console.log("I am: " + objData.ID);
                     g_objData.nID = objData.ID;
                 }
+
             }
         }
     }
     catch (exception) {
         console.log('ERROR: ' + exception);
     }
+}
+
+const pickUp = (nID) => {
+    let objData = {};
+    objData.ToID = parseInt(nID);
+    objData.Message = "Msg2ID";
+    objData.Type = "Jake";
+    objData.GameID = 0;
+    objData.Event = "PickingUp";
+    objData.UN = g_objData.sUsername;
+    objData.ID = g_objData.nID;
+    let jsonData = JSON.stringify(objData);
+    sendMessage(jsonData);
 }
 
 const createdDescription = (description) => {
@@ -151,7 +231,6 @@ const gotRemoteStream = (event) => {
     console.log('got remote stream');
     document.getElementById('remote').srcObject = event.streams[0];
 }
-
 
 const SendMyID = () => {
     let objData = {};
@@ -184,6 +263,8 @@ const close_socket = () => {
 }
 
 const CheckConnection = () => {
+    if (!g_objData.sUsername)
+        return;
     if (!wSocket)
         initWebSocket();
     else if (wSocket.readyState == 3) { // Closed
@@ -227,3 +308,11 @@ const VisiblitySetup = () => {
 }
 
 VisiblitySetup();
+
+const PrepRTCToBrowser = () => {
+    navigator.getUserMedia = navigator.getUserMedia || navigator.mozGetUserMedia || navigator.webkitGetUserMedia;
+    window.RTCPeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
+    window.RTCIceCandidate = window.RTCIceCandidate || window.mozRTCIceCandidate || window.webkitRTCIceCandidate;
+    window.RTCSessionDescription = window.RTCSessionDescription || window.mozRTCSessionDescription || window.webkitRTCSessionDescription;
+    window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || window.mozSpeechRecognition || window.msSpeechRecognition || window.oSpeechRecognition;
+}

@@ -5,3 +5,23 @@ body {
 video {
     width: 50%;
 }
+
+.incoming {
+    float: right;
+    border: 1px solid;
+    width: 400px;
+    height: auto;
+    text-align: center;
+}
+
+.callsomeone {
+    float: left;
+    border: 1px solid;
+    width: 400px;
+    height: auto;
+    text-align: center;
+}
+
+button {
+    cursor: pointer;
+}
