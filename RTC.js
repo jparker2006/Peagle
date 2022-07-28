@@ -2,15 +2,7 @@ var g_objData = {};
 
 onload = () => {
     PrepRTCToBrowser();
-//     setRTCConstraints();
-
     LoginFrame();
-//     MenuFrame();
-
-    /*
-    MainFrame();
-    initWebSocket();
-    */
 }
 
 const LoginFrame = () => {
@@ -37,11 +29,17 @@ const MenuFrame = () => {
     sPage += "<div class='callsomeone'>";
     sPage += "Call Someone<br>";
     sPage += "<input id='calledusername' type='text' placeholder='Username' />";
-    sPage += "<button onClick='dialUser()'>Dial Up</button>";
+    sPage += "<button onClick='dialUser()'>Dial Up</button><br>";
+    sPage += "<input id='groupname' type='text' placeholder='Group Name' />";
+    sPage += "<button onClick='createGroup()'>Create Group</button>";
     sPage += "</div>";
 
     sPage += "<div id='incoming' class='incoming'>";
     sPage += "Incoming Calls:<br>";
+    sPage += "</div>";
+
+    sPage += "<div id='groups' class='incoming'>";
+    sPage += "Available Groups:<br>";
     sPage += "</div>";
 
     document.getElementById('Main').innerHTML = sPage;
@@ -66,22 +64,58 @@ const dialUser = () => {
     sendMessage(jsonData);
 }
 
+const createGroup = () => {
+    let sGroupName = document.getElementById("groupname").value;
+    alert(sGroupName);
+}
+
 const MainFrame = () => {
     let sPage = "";
     sPage += "<video id='local' autoplay muted ></video>";
     sPage += "<video id='remote' autoplay ></video><br>";
-    sPage += "<button id='start' onclick='start(true)'>Start Video</button>";
+    sPage += "<button onClick='hangUp()'>Hang up</button>";
     document.getElementById('Main').innerHTML = sPage;
 }
 
-const start = (isCaller) => {
+const start = (bCaller) => {
     g_objData.PC = new RTCPeerConnection({ 'iceServers':
         [ {'urls': 'stun:stun.stunprotocol.org:3478'}, {'urls': 'stun:stun.l.google.com:19302'} ]
     });
+
     g_objData.PC.onicecandidate = gotIceCandidate;
     g_objData.PC.ontrack = gotRemoteStream;
 
-    PCStream(isCaller);
+    PCStream(bCaller);
+}
+
+const closeRTC = () => {
+    g_objData.PC.close();
+    g_objData.PC = null;
+
+    if (g_objData.LocalStream) {
+        g_objData.LocalStream.getTracks().forEach(function (track) {
+            track.stop();
+        });
+        g_objData.LocalStream = null;
+    }
+    g_objData.nCalling = -1;
+    MenuFrame();
+
+}
+
+const hangUp = () => {
+    let objData = {};
+    objData.ToID = parseInt(g_objData.nCalling);
+    objData.Type = "Jake";
+    objData.GameID = g_objData.nGameID;
+    objData.ID = g_objData.nID;
+    objData.Event = "HangUp";
+    objData.Message = "Msg2ID";
+    objData.ice = event.candidate;
+    let jsonData = JSON.stringify(objData);
+    sendMessage(jsonData);
+
+    closeRTC();
 }
 
 const setRTCConstraints = () => {
@@ -91,15 +125,16 @@ const setRTCConstraints = () => {
         alert('Your browser does not support getUserMedia API');
 }
 
-const PCStream = (isCaller) => {
+const PCStream = (bCaller) => {
     setTimeout(function() {
         if (!g_objData.LocalStream) {
-            PCStream();
+            PCStream(bCaller);
             console.log("Still trying");
         }
         else {
             g_objData.PC.addStream(g_objData.LocalStream);
-            if (isCaller) {
+            if (bCaller) {
+                console.log("Caller making offer");
                 g_objData.PC.createOffer().then(createdDescription).catch(errorHandler);
             }
         }
@@ -109,11 +144,12 @@ const PCStream = (isCaller) => {
 const gotIceCandidate = (event) => {
     if (event.candidate != null) {
         let objData = {};
+        objData.ToID = parseInt(g_objData.nCalling);
         objData.Type = "Jake";
         objData.GameID = g_objData.nGameID;
         objData.ID = g_objData.nID;
         objData.Event = "Ice";
-        objData.Message = "BCast2Game";
+        objData.Message = "Msg2ID";
         objData.ice = event.candidate;
         let jsonData = JSON.stringify(objData);
         sendMessage(jsonData);
@@ -150,23 +186,12 @@ const initWebSocket = () => {
             console.log("Connection closed");
         };
         wSocket.onmessage = (evt) => {
-//             if (!g_objData.PC) start(false);
             let objData = JSON.parse(evt.data);
             let sType = objData.Type;
             if ("Jake" == sType) {
 
                 if ("BCast2Game" == objData.Message) {
-                    if ("SDP" == objData.Event) {
-                        g_objData.PC.setRemoteDescription(new RTCSessionDescription(objData.sdp)).then(function() {
-                            if (objData.sdp.type == 'offer') {
-                                g_objData.PC.createAnswer().then(createdDescription).catch(errorHandler);
-                            }
-                        }).catch(errorHandler);
-                    }
-                    else if ("Ice" == objData.Event) {
-                        g_objData.PC.addIceCandidate(new RTCIceCandidate(objData.ice)).catch(errorHandler);
-                    }
-                    else if ("SomeonesDialing" == objData.Event) {
+                    if ("SomeonesDialing" == objData.Event) {
                         if (objData.Username == g_objData.sUsername) {
                             let sPage = "";
                             sPage += "<div class='call' onClick='pickUp("+objData.ID+")'>";
@@ -180,14 +205,34 @@ const initWebSocket = () => {
                 else if ("Msg2ID" == objData.Message) {
                     if ("PickingUp" == objData.Event) {
                         console.log(objData.UN + " picked up the call");
+                        setRTCConstraints();
+                        g_objData.nCalling = objData.ID;
+                        MainFrame();
+                        start(true);
                     }
+                    else if ("SDP" == objData.Event) {
+                        console.log("SDP recieved");
+                        g_objData.PC.setRemoteDescription(new RTCSessionDescription(objData.sdp)).then(function() {
+                            if (objData.sdp.type == 'offer') {
+                                g_objData.PC.createAnswer().then(createdDescription).catch(errorHandler);
+                            }
+                        }).catch(errorHandler);
+                    }
+                    else if ("Ice" == objData.Event) {
+                        console.log("Ice recieved");
+                        g_objData.PC.addIceCandidate(new RTCIceCandidate(objData.ice)).catch(errorHandler);
+                    }
+                    else if ("HangUp" == objData.Event) {
+                        console.log("call ended");
+                        closeRTC();
+                    }
+
                 }
 
                 else if ("WhoAmI" == objData.Message) {
                     console.log("I am: " + objData.ID);
                     g_objData.nID = objData.ID;
                 }
-
             }
         }
     }
@@ -197,6 +242,11 @@ const initWebSocket = () => {
 }
 
 const pickUp = (nID) => {
+    setRTCConstraints();
+    g_objData.nCalling = nID;
+    MainFrame();
+    start(false);
+
     let objData = {};
     objData.ToID = parseInt(nID);
     objData.Message = "Msg2ID";
@@ -215,9 +265,10 @@ const createdDescription = (description) => {
     g_objData.PC.setLocalDescription(description).then(function() {
 
         let objData = {};
+        objData.ToID = parseInt(g_objData.nCalling);
         objData.Type = "Jake";
         objData.GameID = g_objData.nGameID;
-        objData.Message = "BCast2Game";
+        objData.Message = "Msg2ID";
         objData.ID = g_objData.nID;
         objData.Event = "SDP";
         objData.sdp = g_objData.PC.localDescription;
