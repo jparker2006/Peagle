@@ -76,7 +76,7 @@ const createGroup = () => {
     let jsonData = JSON.stringify(objData);
     sendMessage(jsonData);
 
-    joinGroup(1); // will be game id
+    joinGroup(1);
 }
 
 const MainFrame = () => {
@@ -103,17 +103,18 @@ const start = (bCaller) => {
 const startGroupMember = (bCaller, nIndice) => {
 
     g_objData.nCalling = g_objData.PCs[nIndice].nID;
+    console.log(g_objData.nCalling);
 
     g_objData.PCs[nIndice].conn = new RTCPeerConnection({ 'iceServers':
         [ {'urls': 'stun:stun.stunprotocol.org:3478'}, {'urls': 'stun:stun.l.google.com:19302'} ]
     });
 
-    g_objData.PCs[nIndice].conn.onicecandidate = gotIceCandidate;
-    g_objData.PCs[nIndice].conn.ontrack = gotRemoteStream;
+    g_objData.PCs[0].conn.onicecandidate = gotIceCandidate;
+    g_objData.PCs[0].conn.ontrack = gotRemoteStream;
 
     console.log(g_objData.PCs);
 
-    ForcedOfferPCStream(bCaller, nIndice);
+    ForcedOfferPCStream(bCaller, 0);
 }
 
 const ForcedOfferPCStream = (bCaller, nIndice) => {
@@ -213,15 +214,12 @@ const errorHandler = (error) => {
 }
 
 const joinGroup = (nGameID) => {
+    SetGameID(nGameID);
     g_objData.PCs = [];
     g_objData.nGameID = nGameID;
 
     GroupFrame();
     setRTCConstraints();
-
-    SetGameID(nGameID);
-    BroadcastGiveMeYourData();
-    BroadcastData();
 }
 
 const GroupFrame = () => {
@@ -241,7 +239,7 @@ const BroadcastGiveMeYourData = () => {
     objData.Message = "BCast2Game";
     objData.Event = "GiveMeYourData";
     objData.ID = g_objData.nID;
-    objData.bCaller = false;
+    objData.bCaller = true;
     let jsonData = JSON.stringify(objData);
     sendMessage(jsonData);
 }
@@ -265,7 +263,7 @@ const BroadcastData = () => {
     objData.ID = g_objData.nID;
     objData.Event = "Data";
     objData.Message = "BCast2Game";
-    objData.bCaller = true;
+    objData.bCaller = false;
     let jsonData = JSON.stringify(objData);
     sendMessage(jsonData);
 }
@@ -366,6 +364,10 @@ const initWebSocket = () => {
                 else if ("WhoAmI" == objData.Message) {
                     console.log("I am: " + objData.ID);
                     g_objData.nID = objData.ID;
+                    if (g_objData.nGameID != 0) {
+                        BroadcastGiveMeYourData();
+                        BroadcastData();
+                    }
                 }
             }
         }
