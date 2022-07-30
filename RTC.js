@@ -30,16 +30,10 @@ const MenuFrame = () => {
     sPage += "Call Someone<br>";
     sPage += "<input id='calledusername' type='text' placeholder='Username' />";
     sPage += "<button onClick='dialUser()'>Dial Up</button><br>";
-    sPage += "<input id='groupname' type='text' placeholder='Group Name' />";
-    sPage += "<button onClick='createGroup()'>Create Group</button>";
     sPage += "</div>";
 
     sPage += "<div id='incoming' class='incoming'>";
     sPage += "Incoming Calls:<br>";
-    sPage += "</div>";
-
-    sPage += "<div id='groups' class='incoming'>";
-    sPage += "Available Groups:<br>";
     sPage += "</div>";
 
     document.getElementById('Main').innerHTML = sPage;
@@ -62,96 +56,40 @@ const dialUser = () => {
     objData.TheirUN = g_objData.sUsername;
     let jsonData = JSON.stringify(objData);
     sendMessage(jsonData);
-}
 
-const createGroup = () => {
-    let sGroupName = document.getElementById("groupname").value;
-    let objData = {};
-    objData.Type = "Jake";
-    objData.GameID = g_objData.nGameID;
-    objData.Message = "BCast2Game";
-    objData.ID = g_objData.nID;
-    objData.Event = "GroupCreated";
-    objData.GroupName = sGroupName;
-    let jsonData = JSON.stringify(objData);
-    sendMessage(jsonData);
+    setRTCConstraints();
+    MainFrame();
 
-    joinGroup(1);
+    g_objData.PCs = [];
 }
 
 const MainFrame = () => {
     let sPage = "";
-    sPage += "<div id='videos'>";
     sPage += "<video id='local' autoplay muted ></video>";
-    sPage += "<video id='remote' autoplay ></video><br>";
-    sPage += "</div>";
-    sPage += "<button onClick='hangUp()'>Hang up</button>";
     document.getElementById('Main').innerHTML = sPage;
 }
 
-const start = (bCaller) => {
-    g_objData.PC = new RTCPeerConnection({ 'iceServers':
+const start = (bCaller, nID) => {
+    g_objData.PCs.push({});
+    let nIndex = g_objData.PCs.length - 1; // will always be the most recent entry
+    g_objData.PCs[nIndex].conn = new RTCPeerConnection({ 'iceServers':
         [ {'urls': 'stun:stun.stunprotocol.org:3478'}, {'urls': 'stun:stun.l.google.com:19302'} ]
     });
-
-    g_objData.PC.onicecandidate = gotIceCandidate;
-    g_objData.PC.ontrack = gotRemoteStream;
-
-    PCStream(bCaller);
+    g_objData.PCs[nIndex].videoElement = document.createElement('video');
+    g_objData.PCs[nIndex].videoElement.id = 'USER' + String(nID);
+    g_objData.PCs[nIndex].videoElement.autoplay = true;
+    document.getElementById('Main').innerHTML += g_objData.PCs[nIndex].videoElement.outerHTML;
+    g_objData.PCs[nIndex].ID = nID;
+    g_objData.PCs[nIndex].conn.onicecandidate = function(event) { gotIceCandidate(nID, event) };
+    g_objData.PCs[nIndex].conn.ontrack = function(event) { gotRemoteStream(nID, event) };
+    PCStream(bCaller, nID);
 }
 
-const startGroupMember = (bCaller, nIndice) => {
-
-    g_objData.nCalling = g_objData.PCs[nIndice].nID;
-    console.log(g_objData.nCalling);
-
-    g_objData.PCs[nIndice].conn = new RTCPeerConnection({ 'iceServers':
-        [ {'urls': 'stun:stun.stunprotocol.org:3478'}, {'urls': 'stun:stun.l.google.com:19302'} ]
-    });
-
-    g_objData.PCs[0].conn.onicecandidate = gotIceCandidate;
-    g_objData.PCs[0].conn.ontrack = gotRemoteStream;
-
-    console.log(g_objData.PCs);
-
-    ForcedOfferPCStream(bCaller, 0);
-}
-
-const ForcedOfferPCStream = (bCaller, nIndice) => {
-    setTimeout(function() {
-        if (!g_objData.LocalStream) {
-            ForcedOfferPCStream(bCaller, nIndice);
-            console.log("Still trying");
-        }
-        else {
-            g_objData.PCs[nIndice].conn.addStream(g_objData.LocalStream);
-            if (bCaller) {
-                console.log("Caller making offer");
-                g_objData.PCs[nIndice].conn.createOffer().then(createdDescription).catch(errorHandler);
-            }
-        }
-    }, 500);
-}
-
-const PCStream = (bCaller) => {
-    setTimeout(function() {
-        if (!g_objData.LocalStream) {
-            PCStream(bCaller);
-            console.log("Still trying");
-        }
-        else {
-            g_objData.PC.addStream(g_objData.LocalStream);
-            if (bCaller) {
-                console.log("Caller making offer");
-                g_objData.PC.createOffer().then(createdDescription).catch(errorHandler);
-            }
-        }
-    }, 500);
-}
-
+/*
 const closeRTC = () => {
-    g_objData.PC.close();
-    g_objData.PC = null;
+    g_objData.PCs[0].conn.close();
+    g_objData.PCs[0].conn = null;
+    // remove from PC array
 
     if (g_objData.LocalStream) {
         g_objData.LocalStream.getTracks().forEach(function (track) {
@@ -159,14 +97,12 @@ const closeRTC = () => {
         });
         g_objData.LocalStream = null;
     }
-    g_objData.nCalling = -1;
-    g_objData.PCs = [];
-    g_objData.nGameID = 0;
-    SetGameID(0);
-
+//     g_objData.nCalling = -1;
     MenuFrame();
-}
 
+}
+*/
+/*
 const hangUp = () => {
     let objData = {};
     objData.ToID = parseInt(g_objData.nCalling);
@@ -181,6 +117,7 @@ const hangUp = () => {
 
     closeRTC();
 }
+*/
 
 const setRTCConstraints = () => {
     if (navigator.mediaDevices.getUserMedia)
@@ -189,10 +126,31 @@ const setRTCConstraints = () => {
         alert('Your browser does not support getUserMedia API');
 }
 
-const gotIceCandidate = (event) => {
+const PCStream = (bCaller, nID) => {
+    setTimeout(function() {
+        if (!g_objData.LocalStream) {
+            PCStream(bCaller, nID);
+            console.log("Still trying");
+        }
+        else {
+            getUserMediaSuccess(g_objData.LocalStream);
+            for (let i=0; i<g_objData.PCs.length; i++) {
+                document.getElementById('USER' + g_objData.PCs[i].ID).srcObject = g_objData.PCs[i].conn.getRemoteStreams()[0];
+            }
+            let PCsIndice = findPCIById(nID);
+            g_objData.PCs[PCsIndice].conn.addStream(g_objData.LocalStream);
+            if (bCaller) {
+                console.log("Caller making offer");
+                g_objData.PCs[PCsIndice].conn.createOffer().then(createdDescription(nID)).catch(errorHandler);
+            }
+        }
+    }, 500);
+}
+
+const gotIceCandidate = (nID, event) => {
     if (event.candidate != null) {
         let objData = {};
-        objData.ToID = parseInt(g_objData.nCalling);
+        objData.ToID = parseInt(nID);
         objData.Type = "Jake";
         objData.GameID = g_objData.nGameID;
         objData.ID = g_objData.nID;
@@ -213,59 +171,12 @@ const errorHandler = (error) => {
     console.log(error);
 }
 
-const joinGroup = (nGameID) => {
-    SetGameID(nGameID);
-    g_objData.PCs = [];
-    g_objData.nGameID = nGameID;
-
-    GroupFrame();
-    setRTCConstraints();
-}
-
-const GroupFrame = () => {
-    let sPage = "";
-    sPage += "<div id='videos'>";
-    sPage += "<video id='local' autoplay muted ></video>";
-    sPage += "<video id='remote' autoplay ></video>";
-    sPage += "</div>";
-    sPage += "<button onClick='hangUp()'>Hang up</button>";
-    document.getElementById('Main').innerHTML = sPage;
-}
-
-const BroadcastGiveMeYourData = () => {
-    let objData = {};
-    objData.Type = "Jake";
-    objData.GameID = g_objData.nGameID;
-    objData.Message = "BCast2Game";
-    objData.Event = "GiveMeYourData";
-    objData.ID = g_objData.nID;
-    objData.bCaller = true;
-    let jsonData = JSON.stringify(objData);
-    sendMessage(jsonData);
-}
-
-const SendData = (nUID) => {
-    let objData = {};
-    objData.ToID = parseInt(nUID);
-    objData.Type = "Jake";
-    objData.GameID = g_objData.nGameID;
-    objData.ID = g_objData.nID;
-    objData.Event = "Data";
-    objData.Message = "Msg2ID";
-    let jsonData = JSON.stringify(objData);
-    sendMessage(jsonData);
-}
-
-const BroadcastData = () => {
-    let objData = {};
-    objData.Type = "Jake";
-    objData.GameID = g_objData.nGameID;
-    objData.ID = g_objData.nID;
-    objData.Event = "Data";
-    objData.Message = "BCast2Game";
-    objData.bCaller = false;
-    let jsonData = JSON.stringify(objData);
-    sendMessage(jsonData);
+const inPCs = (nID) => {
+    for (let i=0; i<g_objData.PCs.length; i++) {
+        if (nID == g_objData.PCs[i].ID)
+            return true;
+    }
+    return false;
 }
 
 var wsUri = "ws://jakehenryparker.com:58007";
@@ -295,68 +206,54 @@ const initWebSocket = () => {
 
                 if ("BCast2Game" == objData.Message) {
                     if ("SomeonesDialing" == objData.Event) {
-                        if (objData.Username == g_objData.sUsername) {
-                            let sPage = "";
-                            sPage += "<div class='call' onClick='pickUp("+objData.ID+")'>";
-                            sPage += objData.TheirUN + " is calling";
-                            sPage += "</div>";
-                            document.getElementById("incoming").innerHTML += sPage;
-                        }
-                    }
-                    else if ("GroupCreated" == objData.Event) {
                         let sPage = "";
-                        sPage += "<div class='call' onClick='joinGroup(" + 1 + ")'>"; // will be the game number for now we only need 1 group
-                        sPage += objData.GroupName;
+                        sPage += "<div class='call' onClick='pickUp("+objData.ID+", "+true+")'>";
+                        sPage += objData.TheirUN;
                         sPage += "</div>";
-                        document.getElementById("groups").innerHTML += sPage;
+                        document.getElementById("incoming").innerHTML += sPage;
                     }
-                    else if ("GiveMeYourData" == objData.Event) {
-                        console.log("giving you my data");
-                        SendData(objData.ID);
-                    }
-                    else if ("Data" == objData.Event) {
-                        console.log("got your data");
-                        addNewPersonToCall(objData, objData.bCaller);
+                    else if ("NewConnector" == objData.Event) {
+                        if (g_objData.PCs && !inPCs(objData.ID)) {
+                            start(true, objData.ID);
+                            let objPickData = {};
+                            objPickData.ToID = parseInt(objData.ID);
+                            objPickData.Message = "Msg2ID";
+                            objPickData.Type = "Jake";
+                            objPickData.GameID = 0;
+                            objPickData.Event = "PickingUp";
+                            objPickData.UN = g_objData.sUsername;
+                            objPickData.ID = g_objData.nID;
+                            let jsonData = JSON.stringify(objPickData);
+                            sendMessage(jsonData);
+                        }
                     }
                 }
 
                 else if ("Msg2ID" == objData.Message) {
                     if ("PickingUp" == objData.Event) {
                         console.log(objData.UN + " picked up the call");
-                        setRTCConstraints();
-                        g_objData.nCalling = objData.ID;
-                        MainFrame();
-                        start(true);
+//                         setRTCConstraints();
+//                         g_objData.nCalling = objData.ID;
+                        start(false, objData.ID);
+//                         MainFrame();
                     }
                     else if ("SDP" == objData.Event) {
                         console.log("SDP recieved");
-
-                        /*
-                        g_objData.PC.setRemoteDescription(new RTCSessionDescription(objData.sdp)).then(function() {
-                            if (objData.sdp.type == 'offer') {
-                                g_objData.PC.createAnswer().then(createdDescription).catch(errorHandler);
-                            }
-                        }).catch(errorHandler);
-                        */
-
-                        g_objData.PCs[0].conn.setRemoteDescription(new RTCSessionDescription(objData.sdp)).then(function() {
-                            if (objData.sdp.type == 'offer') {
-                                g_objData.PCs[0].conn.createAnswer().then(createdDescription).catch(errorHandler);
+                        let PCsIndice = findPCIById(objData.ID);
+                        g_objData.PCs[PCsIndice].conn.setRemoteDescription(new RTCSessionDescription(objData.sdp)).then(function() {
+                            if ('offer' == objData.sdp.type) {
+                                g_objData.PCs[PCsIndice].conn.createAnswer().then(createdDescription(objData.ID)).catch(errorHandler);
                             }
                         }).catch(errorHandler);
                     }
                     else if ("Ice" == objData.Event) {
                         console.log("Ice recieved");
-//                         g_objData.PC.addIceCandidate(new RTCIceCandidate(objData.ice)).catch(errorHandler);
-                        g_objData.PCs[0].conn.addIceCandidate(new RTCIceCandidate(objData.ice)).catch(errorHandler);
+                        let PCsIndice = findPCIById(objData.ID);
+                        g_objData.PCs[PCsIndice].conn.addIceCandidate(new RTCIceCandidate(objData.ice)).catch(errorHandler);
                     }
                     else if ("HangUp" == objData.Event) {
                         console.log("call ended");
                         closeRTC();
-                    }
-                    else if ("Data" == objData.Event) {
-                        console.log("got your data");
-                        addNewPersonToCall(objData, objData.bCaller);
                     }
 
                 }
@@ -364,10 +261,6 @@ const initWebSocket = () => {
                 else if ("WhoAmI" == objData.Message) {
                     console.log("I am: " + objData.ID);
                     g_objData.nID = objData.ID;
-                    if (g_objData.nGameID != 0) {
-                        BroadcastGiveMeYourData();
-                        BroadcastData();
-                    }
                 }
             }
         }
@@ -377,20 +270,24 @@ const initWebSocket = () => {
     }
 }
 
-const addNewPersonToCall = (objData, bCaller) => {
-    let objPC = {};
-    objPC.nID = objData.ID;
-    console.log("added new member stream");
+const findPCIById = (nID) => {
+    for (let i=0; i<g_objData.PCs.length; i++) {
+        if (nID == g_objData.PCs[i].ID)
+            return i;
+    }
 
-    g_objData.PCs.push(objPC);
-    startGroupMember(bCaller, g_objData.PCs.length - 1);
+    console.log("PANIC: PC for Id not created");
+    return -1;
 }
 
-const pickUp = (nID) => {
+const pickUp = (nID, bFirstPick) => {
     setRTCConstraints();
-    g_objData.nCalling = nID;
+//     g_objData.nCalling = nID;
     MainFrame();
-    start(false);
+
+    g_objData.PCs = [];
+    start(true, nID);
+//     g_objData.PCs[0].ID = nID;
 
     let objData = {};
     objData.ToID = parseInt(nID);
@@ -402,33 +299,45 @@ const pickUp = (nID) => {
     objData.ID = g_objData.nID;
     let jsonData = JSON.stringify(objData);
     sendMessage(jsonData);
+
+    // spider web data distribution
+    if (bFirstPick) {
+        console.log("Owner -> new");
+        objData = {};
+        objData.Message = "BCast2Game";
+        objData.Type = "Jake";
+        objData.GameID = 0;
+        objData.Event = "NewConnector";
+        objData.ID = g_objData.nID;
+        objData.Owner = nID;
+        jsonData = JSON.stringify(objData);
+        sendMessage(jsonData);
+    }
 }
 
-const createdDescription = (description) => {
+const createdDescription = (id, description) => {
     console.log('got description');
 
-    g_objData.PCs[0].conn.setLocalDescription(description).then(function() {
+    let PCsIndice = findPCIById(id);
+    g_objData.PCs[PCsIndice].conn.setLocalDescription(description).then(function() {
 
         let objData = {};
-        objData.ToID = parseInt(g_objData.PCs[0].nID);
+        objData.ToID = parseInt(id);
         objData.Type = "Jake";
         objData.GameID = g_objData.nGameID;
         objData.Message = "Msg2ID";
         objData.ID = g_objData.nID;
         objData.Event = "SDP";
-        objData.sdp = g_objData.PCs[0].conn.localDescription;
+        objData.sdp = g_objData.PCs[PCsIndice].conn.localDescription;
         let jsonData = JSON.stringify(objData);
         sendMessage(jsonData);
 
     }).catch(errorHandler);
 }
 
-const gotRemoteStream = (event) => {
+const gotRemoteStream = (nID, event) => {
     console.log('got remote stream');
-    document.getElementById('remote').srcObject = event.streams[0];
-//     document.getElementById('USER' + g_objData.PCs[0].nID).srcObject = event.streams[0];
-//     g_objData.PCs[0].vidStream.srcObject = event.streams[0];
-
+    document.getElementById('USER' + String(nID)).srcObject = event.streams[0];
 }
 
 const SendMyID = () => {
