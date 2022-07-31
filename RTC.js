@@ -45,7 +45,6 @@ const dialUser = () => {
         alert("Please enter a username before dialing");
         return;
     }
-
     let objData = {};
     objData.Type = "Jake";
     objData.GameID = g_objData.nGameID;
@@ -134,7 +133,7 @@ const PCStream = (bCaller, nID) => {
         }
         else {
             getUserMediaSuccess(g_objData.LocalStream);
-            for (let i=0; i<g_objData.PCs.length; i++) {
+            for (let i=0; i<g_objData.PCs.length-1; i++) { // new guy doesnt need to be re added
                 document.getElementById('USER' + g_objData.PCs[i].ID).srcObject = g_objData.PCs[i].conn.getRemoteStreams()[0];
             }
             let PCsIndice = findPCIById(nID);
@@ -262,6 +261,21 @@ const initWebSocket = () => {
                     console.log("I am: " + objData.ID);
                     g_objData.nID = objData.ID;
                 }
+
+                else if ("PlayerExitingGame" == objData.Message) {
+                    if (!g_objData.PCs)
+                        return;
+                    for (let i=0; i<g_objData.PCs.length; i++) {
+                        if (g_objData.PCs[i].ID == objData.ID) {
+                            console.log("removing user " + objData.ID);
+                            g_objData.PCs[i].conn.close();
+                            g_objData.PCs[i].conn = null;
+                            g_objData.PCs.splice(i, 1);
+                            document.getElementById('USER' + String(objData.ID)).srcObject = null;
+                            document.getElementById('USER' + String(objData.ID)).outerHTML = "";
+                        }
+                    }
+                }
             }
         }
     }
@@ -281,6 +295,7 @@ const findPCIById = (nID) => {
 }
 
 const pickUp = (nID, bFirstPick) => {
+
     setRTCConstraints();
 //     g_objData.nCalling = nID;
     MainFrame();
