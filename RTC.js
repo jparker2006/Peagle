@@ -56,32 +56,7 @@ const dialUser = () => {
     let jsonData = JSON.stringify(objData);
     sendMessage(jsonData);
 
-    setRTCConstraints();
-    MainFrame();
-
-    g_objData.PCs = [];
-}
-
-const MainFrame = () => {
-    let sPage = "";
-    sPage += "<video id='local' autoplay muted ></video>";
-    document.getElementById('Main').innerHTML = sPage;
-}
-
-const start = (bCaller, nID) => {
-    g_objData.PCs.push({});
-    let nIndex = g_objData.PCs.length - 1; // will always be the most recent entry
-    g_objData.PCs[nIndex].conn = new RTCPeerConnection({ 'iceServers':
-        [ {'urls': 'stun:stun.stunprotocol.org:3478'}, {'urls': 'stun:stun.l.google.com:19302'} ]
-    });
-    g_objData.PCs[nIndex].videoElement = document.createElement('video');
-    g_objData.PCs[nIndex].videoElement.id = 'USER' + String(nID);
-    g_objData.PCs[nIndex].videoElement.autoplay = true;
-    document.getElementById('Main').innerHTML += g_objData.PCs[nIndex].videoElement.outerHTML;
-    g_objData.PCs[nIndex].ID = nID;
-    g_objData.PCs[nIndex].conn.onicecandidate = function(event) { gotIceCandidate(nID, event) };
-    g_objData.PCs[nIndex].conn.ontrack = function(event) { gotRemoteStream(nID, event) };
-    PCStream(bCaller, nID);
+    JoinCall(1);
 }
 
 /*
@@ -89,7 +64,6 @@ const closeRTC = () => {
     g_objData.PCs[0].conn.close();
     g_objData.PCs[0].conn = null;
     // remove from PC array
-
     if (g_objData.LocalStream) {
         g_objData.LocalStream.getTracks().forEach(function (track) {
             track.stop();
@@ -98,7 +72,6 @@ const closeRTC = () => {
     }
 //     g_objData.nCalling = -1;
     MenuFrame();
-
 }
 */
 /*
@@ -113,62 +86,11 @@ const hangUp = () => {
     objData.ice = event.candidate;
     let jsonData = JSON.stringify(objData);
     sendMessage(jsonData);
-
     closeRTC();
 }
 */
 
-const setRTCConstraints = () => {
-    if (navigator.mediaDevices.getUserMedia)
-        navigator.mediaDevices.getUserMedia({ video: true, audio: false }).then(getUserMediaSuccess).catch(errorHandler);
-    else
-        alert('Your browser does not support getUserMedia API');
-}
 
-const PCStream = (bCaller, nID) => {
-    setTimeout(function() {
-        if (!g_objData.LocalStream) {
-            PCStream(bCaller, nID);
-            console.log("Still trying");
-        }
-        else {
-            getUserMediaSuccess(g_objData.LocalStream);
-            for (let i=0; i<g_objData.PCs.length-1; i++) { // new guy doesnt need to be re added
-                document.getElementById('USER' + g_objData.PCs[i].ID).srcObject = g_objData.PCs[i].conn.getRemoteStreams()[0];
-            }
-            let PCsIndice = findPCIById(nID);
-            g_objData.PCs[PCsIndice].conn.addStream(g_objData.LocalStream);
-            if (bCaller) {
-                console.log("Caller making offer");
-                g_objData.PCs[PCsIndice].conn.createOffer().then(createdDescription(nID)).catch(errorHandler);
-            }
-        }
-    }, 500);
-}
-
-const gotIceCandidate = (nID, event) => {
-    if (event.candidate != null) {
-        let objData = {};
-        objData.ToID = parseInt(nID);
-        objData.Type = "Jake";
-        objData.GameID = g_objData.nGameID;
-        objData.ID = g_objData.nID;
-        objData.Event = "Ice";
-        objData.Message = "Msg2ID";
-        objData.ice = event.candidate;
-        let jsonData = JSON.stringify(objData);
-        sendMessage(jsonData);
-    }
-}
-
-const getUserMediaSuccess = (stream) => {
-    g_objData.LocalStream = stream;
-    document.getElementById('local').srcObject = stream;
-}
-
-const errorHandler = (error) => {
-    console.log(error);
-}
 
 const inPCs = (nID) => {
     for (let i=0; i<g_objData.PCs.length; i++) {
@@ -206,31 +128,28 @@ const initWebSocket = () => {
                 if ("BCast2Game" == objData.Message) {
                     if ("SomeonesDialing" == objData.Event) {
                         let sPage = "";
-                        sPage += "<div class='call' onClick='pickUp("+objData.ID+", "+true+")'>";
+                        sPage += "<div class='call' onClick='JoinCall("+1+")'>";
                         sPage += objData.TheirUN;
                         sPage += "</div>";
                         document.getElementById("incoming").innerHTML += sPage;
                     }
-                    else if ("NewConnector" == objData.Event) {
-                        if (g_objData.PCs && !inPCs(objData.ID)) {
-                            start(true, objData.ID);
-                            let objPickData = {};
-                            objPickData.ToID = parseInt(objData.ID);
-                            objPickData.Message = "Msg2ID";
-                            objPickData.Type = "Jake";
-                            objPickData.GameID = 0;
-                            objPickData.Event = "PickingUp";
-                            objPickData.UN = g_objData.sUsername;
-                            objPickData.ID = g_objData.nID;
-                            let jsonData = JSON.stringify(objPickData);
-                            sendMessage(jsonData);
-                        }
+                    else if ("CallMe" == objData.Event) {
+                        start(true, objData.ID);
+                        let objPickingUp = {};
+                        objPickingUp.ToID = parseInt(objData.ID);
+                        objPickingUp.Message = "Msg2ID";
+                        objPickingUp.Type = "Jake";
+                        objPickingUp.GameID = g_objData.nGameID;
+                        objPickingUp.Event = "PickingUp";
+                        objPickingUp.ID = g_objData.nID;
+                        let jsonData = JSON.stringify(objPickingUp);
+                        sendMessage(jsonData);
                     }
                 }
 
                 else if ("Msg2ID" == objData.Message) {
                     if ("PickingUp" == objData.Event) {
-                        console.log(objData.UN + " picked up the call");
+//                         console.log(objData.UN + " picked up the call");
 //                         setRTCConstraints();
 //                         g_objData.nCalling = objData.ID;
                         start(false, objData.ID);
@@ -260,6 +179,9 @@ const initWebSocket = () => {
                 else if ("WhoAmI" == objData.Message) {
                     console.log("I am: " + objData.ID);
                     g_objData.nID = objData.ID;
+                    if (0 == g_objData.nGameID)
+                        return;
+                    BCastCallMe();
                 }
 
                 else if ("PlayerExitingGame" == objData.Message) {
@@ -282,16 +204,6 @@ const initWebSocket = () => {
     catch (exception) {
         console.log('ERROR: ' + exception);
     }
-}
-
-const findPCIById = (nID) => {
-    for (let i=0; i<g_objData.PCs.length; i++) {
-        if (nID == g_objData.PCs[i].ID)
-            return i;
-    }
-
-    console.log("PANIC: PC for Id not created");
-    return -1;
 }
 
 const pickUp = (nID, bFirstPick) => {
@@ -330,6 +242,29 @@ const pickUp = (nID, bFirstPick) => {
     }
 }
 
+
+
+
+
+const gotIceCandidate = (nID, event) => {
+    if (event.candidate != null) {
+        let objData = {};
+        objData.ToID = parseInt(nID);
+        objData.Type = "Jake";
+        objData.GameID = g_objData.nGameID;
+        objData.ID = g_objData.nID;
+        objData.Event = "Ice";
+        objData.Message = "Msg2ID";
+        objData.ice = event.candidate;
+        let jsonData = JSON.stringify(objData);
+        sendMessage(jsonData);
+    }
+}
+
+const errorHandler = (error) => {
+    console.log(error);
+}
+
 const createdDescription = (id, description) => {
     console.log('got description');
 
@@ -350,9 +285,55 @@ const createdDescription = (id, description) => {
     }).catch(errorHandler);
 }
 
+const JoinCall = (nGameID) => {
+    setRTCConstraints();
+    MainFrame();
+    g_objData.PCs = [];
+    SetGameID(nGameID);
+}
+
+const BCastCallMe = () => {
+    let objData = {};
+    objData.Type = "Jake";
+    objData.GameID = g_objData.nGameID;
+    objData.Message = "BCast2Game";
+    objData.ID = g_objData.nID;
+    objData.Event = "CallMe";
+    let jsonData = JSON.stringify(objData);
+    sendMessage(jsonData);
+}
+
 const gotRemoteStream = (nID, event) => {
     console.log('got remote stream');
     document.getElementById('USER' + String(nID)).srcObject = event.streams[0];
+}
+
+const MainFrame = () => {
+    let sPage = "";
+    sPage += "<video id='local' autoplay muted ></video>";
+    document.getElementById('Main').innerHTML = sPage;
+}
+
+const getUserMediaSuccess = (stream) => {
+    g_objData.LocalStream = stream;
+    document.getElementById('local').srcObject = stream;
+}
+
+const setRTCConstraints = () => {
+    if (navigator.mediaDevices.getUserMedia)
+        navigator.mediaDevices.getUserMedia({ video: true, audio: false }).then(getUserMediaSuccess).catch(errorHandler);
+    else
+        alert('Your browser does not support getUserMedia API');
+}
+
+const findPCIById = (nID) => {
+    for (let i=0; i<g_objData.PCs.length; i++) {
+        if (nID == g_objData.PCs[i].ID)
+            return i;
+    }
+
+    console.log("PANIC: PC for Id not created");
+    return -1;
 }
 
 const SendMyID = () => {
