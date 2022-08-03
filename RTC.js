@@ -45,6 +45,7 @@ const dialUser = () => {
         alert("Please enter a username before dialing");
         return;
     }
+
     let objData = {};
     objData.Type = "Jake";
     objData.GameID = g_objData.nGameID;
@@ -59,45 +60,22 @@ const dialUser = () => {
     JoinCall(1);
 }
 
-/*
-const closeRTC = () => {
-    g_objData.PCs[0].conn.close();
-    g_objData.PCs[0].conn = null;
-    // remove from PC array
-    if (g_objData.LocalStream) {
-        g_objData.LocalStream.getTracks().forEach(function (track) {
-            track.stop();
-        });
-        g_objData.LocalStream = null;
-    }
-//     g_objData.nCalling = -1;
-    MenuFrame();
-}
-*/
-/*
-const hangUp = () => {
-    let objData = {};
-    objData.ToID = parseInt(g_objData.nCalling);
-    objData.Type = "Jake";
-    objData.GameID = g_objData.nGameID;
-    objData.ID = g_objData.nID;
-    objData.Event = "HangUp";
-    objData.Message = "Msg2ID";
-    objData.ice = event.candidate;
-    let jsonData = JSON.stringify(objData);
-    sendMessage(jsonData);
-    closeRTC();
-}
-*/
-
-
-
 const inPCs = (nID) => {
     for (let i=0; i<g_objData.PCs.length; i++) {
         if (nID == g_objData.PCs[i].ID)
             return true;
     }
     return false;
+}
+
+const findPCIById = (nID) => {
+    for (let i=0; i<g_objData.PCs.length; i++) {
+        if (nID == g_objData.PCs[i].ID)
+            return i;
+    }
+
+    console.log("PANIC: PC for Id not created");
+    return -1;
 }
 
 var wsUri = "ws://jakehenryparker.com:58007";
@@ -149,19 +127,14 @@ const initWebSocket = () => {
 
                 else if ("Msg2ID" == objData.Message) {
                     if ("PickingUp" == objData.Event) {
-//                         console.log(objData.UN + " picked up the call");
-//                         setRTCConstraints();
-//                         g_objData.nCalling = objData.ID;
                         start(false, objData.ID);
-//                         MainFrame();
                     }
                     else if ("SDP" == objData.Event) {
                         console.log("SDP recieved");
                         let PCsIndice = findPCIById(objData.ID);
                         g_objData.PCs[PCsIndice].conn.setRemoteDescription(new RTCSessionDescription(objData.sdp)).then(function() {
-                            if ('offer' == objData.sdp.type) {
+                            if ('offer' == objData.sdp.type)
                                 g_objData.PCs[PCsIndice].conn.createAnswer().then(createdDescription(objData.ID)).catch(errorHandler);
-                            }
                         }).catch(errorHandler);
                     }
                     else if ("Ice" == objData.Event) {
@@ -205,46 +178,6 @@ const initWebSocket = () => {
         console.log('ERROR: ' + exception);
     }
 }
-
-const pickUp = (nID, bFirstPick) => {
-
-    setRTCConstraints();
-//     g_objData.nCalling = nID;
-    MainFrame();
-
-    g_objData.PCs = [];
-    start(true, nID);
-//     g_objData.PCs[0].ID = nID;
-
-    let objData = {};
-    objData.ToID = parseInt(nID);
-    objData.Message = "Msg2ID";
-    objData.Type = "Jake";
-    objData.GameID = 0;
-    objData.Event = "PickingUp";
-    objData.UN = g_objData.sUsername;
-    objData.ID = g_objData.nID;
-    let jsonData = JSON.stringify(objData);
-    sendMessage(jsonData);
-
-    // spider web data distribution
-    if (bFirstPick) {
-        console.log("Owner -> new");
-        objData = {};
-        objData.Message = "BCast2Game";
-        objData.Type = "Jake";
-        objData.GameID = 0;
-        objData.Event = "NewConnector";
-        objData.ID = g_objData.nID;
-        objData.Owner = nID;
-        jsonData = JSON.stringify(objData);
-        sendMessage(jsonData);
-    }
-}
-
-
-
-
 
 const gotIceCandidate = (nID, event) => {
     if (event.candidate != null) {
@@ -324,16 +257,6 @@ const setRTCConstraints = () => {
         navigator.mediaDevices.getUserMedia({ video: true, audio: false }).then(getUserMediaSuccess).catch(errorHandler);
     else
         alert('Your browser does not support getUserMedia API');
-}
-
-const findPCIById = (nID) => {
-    for (let i=0; i<g_objData.PCs.length; i++) {
-        if (nID == g_objData.PCs[i].ID)
-            return i;
-    }
-
-    console.log("PANIC: PC for Id not created");
-    return -1;
 }
 
 const SendMyID = () => {
