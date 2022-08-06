@@ -1,2 +1,2 @@
 # RandRTC
-Working on some RTC things<br>Eventually will probably make a multi person audio call or something
+WebRTC video chat<br>Add as many people as you want!
